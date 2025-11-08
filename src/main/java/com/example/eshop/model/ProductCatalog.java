@@ -1,5 +1,6 @@
 package com.example.eshop.model;
 
+import com.example.eshop.enums.AppEnums;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -32,5 +33,8 @@ public class ProductCatalog {
     // Relationship with ProductDetails
     @ManyToMany(mappedBy = "catalogs", fetch = FetchType.LAZY)
     private Set<ProductDetails> products;
+
+    @Enumerated(EnumType.STRING)
+    private AppEnums status;
 
 }

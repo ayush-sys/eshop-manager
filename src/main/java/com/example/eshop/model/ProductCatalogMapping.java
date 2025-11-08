@@ -12,10 +12,12 @@ public class ProductCatalogMapping {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "catalog_id", nullable = false)
-    private Long catalogId;
+    @ManyToOne
+    @JoinColumn(name = "product_id", nullable = false)
+    private ProductDetails product;
 
-    @Column(name = "product_id", nullable = false)
-    private Long productId;
+    @ManyToOne
+    @JoinColumn(name = "catalog_id", nullable = false)
+    private ProductCatalog catalog;
 
 }

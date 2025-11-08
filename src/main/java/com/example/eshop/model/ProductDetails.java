@@ -1,10 +1,15 @@
 package com.example.eshop.model;
 
+import com.example.eshop.enums.AppEnums;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Set;
 
+
+/**
+ * The Product Details.
+ */
 @Data
 @Entity
 @Table(name = "product_details")
@@ -49,5 +54,8 @@ public class ProductDetails {
             inverseJoinColumns = @JoinColumn(name = "catalog_id")
     )
     private Set<ProductCatalog> catalogs;
+
+    @Enumerated(EnumType.STRING)
+    private AppEnums status;
 
 }

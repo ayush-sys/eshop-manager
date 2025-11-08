@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Insert default catalogs -->
+    <changeSet id="1-default-catalogs" author="ayush">
+        <insert tableName="product_catalog_details">
+            <column name="catalog_name" value="Smartphones"/>
+            <column name="description" value="Latest smartphones and accessories"/>
+        </insert>
+        <insert tableName="product_catalog_details">
+            <column name="catalog_name" value="Appliances"/>
+            <column name="description" value="Home and kitchen appliances"/>
+        </insert>
+        <insert tableName="product_catalog_details">
+            <column name="catalog_name" value="Furniture"/>
+            <column name="description" value="Home and office furniture"/>
+        </insert>
+        <insert tableName="product_catalog_details">
+            <column name="catalog_name" value="Laptops"/>
+            <column name="description" value="Personal and business laptops"/>
+        </insert>
+    </changeSet>
+
+    <!-- Insert dummy products -->
+    <changeSet id="2-dummy-products" author="ayush">
+        <insert tableName="product_details">
+            <column name="product_name" value="iPhone 15 Pro"/>
+            <column name="sku" value="IPH15PRO-BLK-256"/>
+            <column name="brand" value="Apple"/>
+            <column name="price" valueNumeric="139999.00"/>
+            <column name="discount_percent" valueNumeric="5.00"/>
+            <column name="quantity_in_stock" valueNumeric="20"/>
+            <column name="description" value="Apple iPhone 15 Pro with A17 Bionic chip"/>
+        </insert>
+        <insert tableName="product_details">
+            <column name="product_name" value="Samsung Galaxy S24"/>
+            <column name="sku" value="SAMS24-128"/>
+            <column name="brand" value="Samsung"/>
+            <column name="price" valueNumeric="129999.00"/>
+            <column name="discount_percent" valueNumeric="3.00"/>
+            <column name="quantity_in_stock" valueNumeric="25"/>
+            <column name="description" value="Samsung Galaxy S24 with AI-powered camera"/>
+        </insert>
+        <insert tableName="product_details">
+            <column name="product_name" value="LG Smart Refrigerator"/>
+            <column name="sku" value="LG-FRZ-500L"/>
+            <column name="brand" value="LG"/>
+            <column name="price" valueNumeric="75999.00"/>
+            <column name="discount_percent" valueNumeric="10.00"/>
+            <column name="quantity_in_stock" valueNumeric="15"/>
+            <column name="description" value="500L Smart Refrigerator with inverter compressor"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

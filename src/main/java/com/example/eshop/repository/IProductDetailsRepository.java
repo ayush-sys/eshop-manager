@@ -9,17 +9,18 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 /**
- * The Product Details Repository.
+ * Repository for Product Details operations.
  */
 @Repository
 public interface IProductDetailsRepository extends JpaRepository<ProductDetails, Long> {
 
     /**
-     * Returns a list of products associated with the given catalog name.
+     * Fetch all products belonging to a specific catalog name.
      *
-     * @param catalogName the name of the catalog
+     * @param catalogName name of the catalog
+     * @return list of products under the given catalog
      */
-    @Query("SELECT p FROM ProductDetails p JOIN p.catalogs c WHERE c.catalogName = :catalogName")
+    @Query("SELECT p FROM ProductDetails p WHERE p.catalog.catalogName = :catalogName")
     List<ProductDetails> findByCatalogName(@Param("catalogName") String catalogName);
 
 }

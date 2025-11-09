@@ -3,38 +3,43 @@ package com.example.eshop.model;
 import com.example.eshop.enums.AppEnums;
 import jakarta.persistence.*;
 import lombok.Data;
+
 import java.time.LocalDateTime;
-import java.util.Set;
+import java.util.List;
 
 @Data
 @Entity
-@Table(name = "product_catalog")
+@Table(name = "product_catalog_details", indexes = {
+        @Index(name = "idx_catalog_name", columnList = "catalog_name")
+})
 public class ProductCatalog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "catalog_id")
+    private Long catalogId;
 
-    @Column(name = "catalog_name", nullable = false, unique = true)
+    @Column(name = "catalog_name", nullable = false, unique = true, length = 100)
     private String catalogName;
 
-    @Column(name = "catalog_description", length = 500)
-    private String catalogDescription;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_catalog_id")
+    private ProductCatalog parentCatalog;
 
-    @Column(name = "is_active", nullable = false)
-    private Boolean isActive = true;
-
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    // Relationship with ProductDetails
-    @ManyToMany(mappedBy = "catalogs", fetch = FetchType.LAZY)
-    private Set<ProductDetails> products;
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 
     @Enumerated(EnumType.STRING)
-    private AppEnums status;
+    @Column(name = "status", length = 20)
+    private AppEnums status = AppEnums.ACTIVE;
+
+    @Column(name = "created_at", columnDefinition = "TIMESTAMP")
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", columnDefinition = "TIMESTAMP")
+    private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "catalog", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<ProductDetails> products;
 
 }

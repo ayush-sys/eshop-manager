@@ -121,11 +121,10 @@ public class ProductServiceImpl implements IProductsService {
             if (existing.isPresent()) {
                 ProductDetails product = existing.get();
                 product.setProductName(productDetails.getProductName());
-                product.setProductDescription(productDetails.getProductDescription());
+                product.setDescription(productDetails.getDescription());
                 product.setPrice(productDetails.getPrice());
-                product.setBrandName(productDetails.getBrandName());
+                product.setMakerName(productDetails.getMakerName());
                 product.setModelNumber(productDetails.getModelNumber());
-                product.setColor(productDetails.getColor());
                 product.setUpdatedAt(LocalDateTime.now());
                 product.setStatus(AppEnums.UPDATED);
                 ProductDetails updated = productRepo.save(product);
@@ -160,10 +159,8 @@ public class ProductServiceImpl implements IProductsService {
             }
 
             ProductDetails product = productOpt.get();
-            ProductCatalog catalog = catalogOpt.get();
 
             // Add mapping entry (Product <-> Catalog)
-            product.getCatalogs().add(catalog);
             product.setUpdatedAt(LocalDateTime.now());
             product.setStatus(AppEnums.ADDED_TO_CATALOG);
 

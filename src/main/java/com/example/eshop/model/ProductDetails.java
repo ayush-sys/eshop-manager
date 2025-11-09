@@ -3,59 +3,68 @@ package com.example.eshop.model;
 import com.example.eshop.enums.AppEnums;
 import jakarta.persistence.*;
 import lombok.Data;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Set;
 
-
-/**
- * The Product Details.
- */
 @Data
 @Entity
-@Table(name = "product_details")
+@Table(name = "product_details", indexes = {
+        @Index(name = "idx_product_name", columnList = "product_name"),
+        @Index(name = "idx_sku", columnList = "sku")
+})
 public class ProductDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "product_id")
+    private Long productId;
 
-    @Column(name = "product_name", nullable = false)
+    @Column(name = "product_name", nullable = false, length = 150)
     private String productName;
 
-    @Column(name = "product_description", length = 1000)
-    private String productDescription;
+    @Column(name = "sku", nullable = false, unique = true, length = 50)
+    private String sku;
 
-    @Column(name = "price", nullable = false)
-    private Double price;
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 
-    @Column(name = "brand_name")
-    private String brandName;
+    @Column(name = "maker_name", length = 100)
+    private String makerName;
 
-    @Column(name = "model_number")
+    @Column(name = "model_number", length = 100)
     private String modelNumber;
 
-    @Column(name = "color")
-    private String color;
+    @Column(name = "price", nullable = false, precision = 10, scale = 2)
+    private BigDecimal price;
 
     @Column(name = "in_stock", nullable = false)
-    private Boolean inStock = true;
+    private Boolean inStock = false;
 
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "discount_percent", precision = 5, scale = 2)
+    private BigDecimal discountPercent = BigDecimal.ZERO;
 
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    @Column(name = "quantity_in_stock")
+    private Integer quantityInStock = 0;
 
-    // Relationship with ProductCatalog
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "product_catalog_mapping",
-            joinColumns = @JoinColumn(name = "product_id"),
-            inverseJoinColumns = @JoinColumn(name = "catalog_id")
-    )
-    private Set<ProductCatalog> catalogs;
+    @Column(name = "weight", precision = 6, scale = 2)
+    private BigDecimal weight;
+
+    @Column(name = "dimensions", length = 100)
+    private String dimensions;
 
     @Enumerated(EnumType.STRING)
-    private AppEnums status;
+    @Column(name = "status", length = 20)
+    private AppEnums status = AppEnums.ACTIVE;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "catalog_id", nullable = false)
+    private ProductCatalog catalog;
+
+    @Column(name = "created_at", columnDefinition = "TIMESTAMP")
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", columnDefinition = "TIMESTAMP")
+    private LocalDateTime updatedAt;
 
 }

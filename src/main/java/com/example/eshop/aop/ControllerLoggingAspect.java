@@ -19,7 +19,7 @@ import java.util.Arrays;
 public class ControllerLoggingAspect {
 
     // Pointcut for all methods inside the controller package
-    @Pointcut("within(com.example.SpringMongo.controller..*)")
+    @Pointcut("within(com.example.eshop.controller..*)")
     public void controllerMethods() {}
 
     @Around("controllerMethods()")

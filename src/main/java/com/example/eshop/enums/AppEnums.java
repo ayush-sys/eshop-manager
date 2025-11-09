@@ -57,6 +57,7 @@ public enum AppEnums {
     PENDING("Request pending"),
     PROCESSING("Request in processing"),
     COMPLETED("Transaction completed"),
+    SUCCESS("Operation successful"),
     ERROR("Error occurred"),
     FAILED("Operation failed"),;
 

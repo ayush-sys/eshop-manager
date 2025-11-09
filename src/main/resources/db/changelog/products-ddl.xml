@@ -16,7 +16,6 @@
             <column name="catalog_name" type="VARCHAR(100)">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="parent_catalog_id" type="BIGINT"/>
             <column name="description" type="TEXT"/>
             <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
@@ -25,7 +24,7 @@
 
         <addForeignKeyConstraint
                 baseTableName="product_catalog_details"
-                baseColumnNames="parent_catalog_id"
+                baseColumnNames="catalog_id"
                 referencedTableName="product_catalog_details"
                 referencedColumnNames="catalog_id"
                 constraintName="fk_parent_catalog"/>
@@ -63,6 +62,9 @@
             <column name="weight" type="DECIMAL(6,2)"/>
             <column name="dimensions" type="VARCHAR(100)"/>
             <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"/>
+            <column name="catalog_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
             <column name="catalog_id" type="BIGINT">
                 <constraints nullable="false"/>
             </column>

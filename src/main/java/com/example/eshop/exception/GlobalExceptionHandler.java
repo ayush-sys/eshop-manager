@@ -1,7 +1,7 @@
 package com.example.eshop.exception;
 
 import com.example.eshop.enums.AppEnums;
-import com.example.eshop.utils.ApiResponseWrapper;
+import com.example.eshop.utils.EShopResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -18,10 +18,8 @@ public class GlobalExceptionHandler {
      * @return standardized API response
      */
     @ExceptionHandler(DataNotFoundException.class)
-    public ResponseEntity<ApiResponseWrapper<Object>> handleDataNotFoundException(DataNotFoundException ex) {
-        ApiResponseWrapper<Object> response = new ApiResponseWrapper<>();
-        response.errorMessage(AppEnums.NOT_FOUND);
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    public ResponseEntity<EShopResponse<Object>> handleDataNotFoundException(DataNotFoundException ex) {
+        return new ResponseEntity<>(EShopResponse.failure(AppEnums.NOT_FOUND), HttpStatus.NOT_FOUND);
     }
 
     /**
@@ -31,10 +29,8 @@ public class GlobalExceptionHandler {
      * @return standardized API response
      */
     @ExceptionHandler(ProcessingError.class)
-    public ResponseEntity<ApiResponseWrapper<Object>> handleProcessingException(ProcessingError ex) {
-        ApiResponseWrapper<Object> response = new ApiResponseWrapper<>();
-        response.errorMessage(AppEnums.ERROR);
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<EShopResponse<Object>> handleProcessingException(ProcessingError ex) {
+        return new ResponseEntity<>(EShopResponse.failure(AppEnums.ERROR), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     /**
@@ -44,10 +40,8 @@ public class GlobalExceptionHandler {
      * @return standardized API response
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponseWrapper<Object>> handleGenericException(Exception ex) {
-        ApiResponseWrapper<Object> response = new ApiResponseWrapper<>();
-        response.errorMessage(AppEnums.FAILED);
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<EShopResponse<Object>> handleGenericException(Exception ex) {
+        return new ResponseEntity<>(EShopResponse.failure(AppEnums.FAILED), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
 }

@@ -1,23 +1,19 @@
 package com.example.eshop.service;
 
+import com.example.eshop.dao.model.ProductCatalog;
+import com.example.eshop.dao.model.ProductDetails;
+import com.example.eshop.dao.repository.IProductCatalogRepository;
+import com.example.eshop.dao.repository.IProductDetailsRepository;
 import com.example.eshop.enums.AppEnums;
-import com.example.eshop.model.ProductCatalog;
-import com.example.eshop.model.ProductDetails;
-import com.example.eshop.repository.IProductCatalogRepository;
-import com.example.eshop.repository.IProductDetailsRepository;
-import com.example.eshop.utils.ApiResponseWrapper;
+import com.example.eshop.utils.EShopResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Slf4j
 @Service
-@Transactional
 public class ProductServiceImpl implements IProductsService {
 
     private final IProductDetailsRepository productRepo;
@@ -30,197 +26,122 @@ public class ProductServiceImpl implements IProductsService {
     }
 
     @Override
-    public ApiResponseWrapper<List<ProductDetails>> fetchAllProducts() {
-        ApiResponseWrapper<List<ProductDetails>> response = new ApiResponseWrapper<>();
-        try {
-            List<ProductDetails> products = productRepo.findAll();
-            if (products.isEmpty()) {
-                log.info("No products found");
-                response.errorMessage(AppEnums.NOT_FOUND);
-            } else {
-                response.successMessage(AppEnums.FOUND, products);
-            }
-        } catch (Exception e) {
-            log.error("Fetch all error: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
+    public EShopResponse<List<ProductDetails>> fetchAllProducts() {
+        List<ProductDetails> products = productRepo.findAll();
+        if (products.isEmpty()) {
+            return EShopResponse.failure(AppEnums.NOT_FOUND, "No products found");
         }
-        return response;
+        log.info("Fetched {} products successfully", products.size());
+        return EShopResponse.success(AppEnums.FOUND, products);
     }
 
     @Override
-    public ApiResponseWrapper<ProductDetails> fetchProductById(Long productId) {
-        ApiResponseWrapper<ProductDetails> response = new ApiResponseWrapper<>();
-        try {
-            Optional<ProductDetails> product = productRepo.findById(productId);
-            if (product.isPresent()) {
-                response.successMessage(AppEnums.FOUND, product.get());
-            } else {
-                log.info("Product not found: {}", productId);
-                response.errorMessage(AppEnums.NOT_FOUND);
-            }
-        } catch (Exception e) {
-            log.error("Fetch by id error: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
-        }
-        return response;
+    public EShopResponse<ProductDetails> fetchProductById(Long id) {
+        return productRepo.findById(id)
+                .map(product -> EShopResponse.success(AppEnums.FOUND, product))
+                .orElse(EShopResponse.failure(AppEnums.NOT_FOUND, "Product not found"));
     }
 
     @Override
-    public ApiResponseWrapper<ProductDetails> addNewProduct(ProductDetails productDetails) {
-        ApiResponseWrapper<ProductDetails> response = new ApiResponseWrapper<>();
+    public EShopResponse<ProductDetails> addNewProduct(ProductDetails productDetails) {
         try {
-            productDetails.setStatus(AppEnums.CREATED);
+            catalogRepo.findByCatalogName(productDetails.getCatalogName())
+                    .orElseThrow(() -> new RuntimeException("Catalog not found: " + productDetails.getCatalogName()));
+
             ProductDetails saved = productRepo.save(productDetails);
-            log.info("Product added: {}", saved.getProductName());
-            response.successMessage(AppEnums.CREATED, saved);
+            log.info("Product '{}' added successfully under catalog '{}'", saved.getProductName(), saved.getCatalogName());
+            return EShopResponse.success(AppEnums.CREATED, saved);
         } catch (Exception e) {
-            log.error("Add product error: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
+            log.error("Error adding product: {}", e.getMessage(), e);
+            return EShopResponse.failure(AppEnums.ERROR, e.getMessage());
         }
-        return response;
     }
 
     @Override
-    public ApiResponseWrapper<ProductCatalog> addNewCatalog(ProductCatalog productCatalog) {
-        ApiResponseWrapper<ProductCatalog> response = new ApiResponseWrapper<>();
-        try {
-            productCatalog.setStatus(AppEnums.CREATED);
-            ProductCatalog saved = catalogRepo.save(productCatalog);
-            log.info("Catalog added: {}", saved.getCatalogName());
-            response.successMessage(AppEnums.CREATED, saved);
-        } catch (Exception e) {
-            log.error("Add catalog error: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
-        }
-        return response;
+    public EShopResponse<ProductCatalog> addNewCatalog(ProductCatalog catalog) {
+        ProductCatalog savedCatalog = catalogRepo.save(catalog);
+        log.info("Added new catalog: {}", savedCatalog.getCatalogName());
+        return EShopResponse.success(AppEnums.SUCCESS, savedCatalog);
     }
 
     @Override
-    public ApiResponseWrapper<List<ProductDetails>> fetchProductByCatalog(String catalogName) {
-        ApiResponseWrapper<List<ProductDetails>> response = new ApiResponseWrapper<>();
-        try {
-            List<ProductDetails> products = productRepo.findByCatalogName(catalogName);
-            if (products.isEmpty()) {
-                log.info("No products found for catalog: {}", catalogName);
-                response.errorMessage(AppEnums.CATEGORY_NOT_FOUND);
-            } else {
-                response.successMessage(AppEnums.FOUND, products);
-            }
-        } catch (Exception e) {
-            log.error("Fetch by catalog error: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
+    public EShopResponse<List<ProductDetails>> fetchProductByCatalog(String catalogName) {
+        var optionalCatalog = catalogRepo.findByCatalogName(catalogName);
+
+        if (optionalCatalog.isEmpty()) {
+            return EShopResponse.failure(AppEnums.NOT_FOUND, "Catalog not found: " + catalogName);
         }
-        return response;
+
+        ProductCatalog catalog = optionalCatalog.get();
+        List<ProductDetails> products = productRepo.findByCatalogId(catalog.getCatalogId());
+
+        if (products.isEmpty()) {
+            return EShopResponse.failure(AppEnums.NOT_FOUND, "No products found for catalog: " + catalogName);
+        }
+
+        log.info("Fetched {} products for catalog '{}'", products.size(), catalogName);
+        return EShopResponse.success(AppEnums.FOUND, products);
     }
 
     @Override
-    public ApiResponseWrapper<ProductDetails> updateProductDetails(Long productId, ProductDetails productDetails) {
-        ApiResponseWrapper<ProductDetails> response = new ApiResponseWrapper<>();
-        try {
-            Optional<ProductDetails> existing = productRepo.findById(productId);
-            if (existing.isPresent()) {
-                ProductDetails product = existing.get();
-                product.setProductName(productDetails.getProductName());
-                product.setDescription(productDetails.getDescription());
-                product.setPrice(productDetails.getPrice());
-                product.setMakerName(productDetails.getMakerName());
-                product.setModelNumber(productDetails.getModelNumber());
-                product.setUpdatedAt(LocalDateTime.now());
-                product.setStatus(AppEnums.UPDATED);
-                ProductDetails updated = productRepo.save(product);
-                log.info("Product updated: {}", productId);
-                response.successMessage(AppEnums.COMPLETED, updated);
-            } else {
-                response.errorMessage(AppEnums.NOT_FOUND);
-            }
-        } catch (Exception e) {
-            log.error("Update product error: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
-        }
-        return response;
+    public EShopResponse<ProductDetails> updateProductDetails(Long id, ProductDetails newData) {
+        return productRepo.findById(id).map(existing -> {
+            existing.setProductName(newData.getProductName());
+            existing.setDescription(newData.getDescription());
+            existing.setSku(newData.getSku());
+            existing.setMakerName(newData.getMakerName());
+            existing.setModelNumber(newData.getModelNumber());
+            existing.setPrice(newData.getPrice());
+            existing.setQuantityInStock(newData.getQuantityInStock());
+            existing.setInStock(newData.getInStock());
+            existing.setDiscountPercent(newData.getDiscountPercent());
+            existing.setDimensions(newData.getDimensions());
+            existing.setWeight(newData.getWeight());
+            existing.setStatus(newData.getStatus());
+            existing.setCatalogId(newData.getCatalogId());
+
+            ProductDetails updated = productRepo.save(existing);
+            log.info("Updated product with ID {}", id);
+            return EShopResponse.success(AppEnums.UPDATED, updated);
+        }).orElse(EShopResponse.failure(AppEnums.NOT_FOUND, "Product not found"));
     }
 
     @Override
-    public ApiResponseWrapper<ProductDetails> updateProductCatalog(Long productId, String catalogName) {
-        ApiResponseWrapper<ProductDetails> response = new ApiResponseWrapper<>();
-        try {
-            Optional<ProductDetails> productOpt = productRepo.findById(productId);
-            if (productOpt.isEmpty()) {
-                log.info("Product not found: {}", productId);
-                response.errorMessage(AppEnums.NOT_FOUND);
-                return response;
-            }
-
-            Optional<ProductCatalog> catalogOpt = catalogRepo.findByCatalogName(catalogName);
-            if (catalogOpt.isEmpty()) {
-                log.info("Catalog not found: {}", catalogName);
-                response.errorMessage(AppEnums.CATEGORY_NOT_FOUND);
-                return response;
-            }
-
-            ProductDetails product = productOpt.get();
-
-            // Add mapping entry (Product <-> Catalog)
-            product.setUpdatedAt(LocalDateTime.now());
-            product.setStatus(AppEnums.ADDED_TO_CATALOG);
-
-            ProductDetails updatedProduct = productRepo.save(product);
-
-            log.info("Product {} added to catalog {}", productId, catalogName);
-            response.successMessage(AppEnums.ADDED_TO_CATALOG, updatedProduct);
-        } catch (Exception e) {
-            log.error("Error updating product catalog: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
-        }
-        return response;
+    public EShopResponse<ProductDetails> updateProductCatalog(Long productId, String catalogName) {
+        return productRepo.findById(productId).map(product -> {
+            ProductCatalog catalog = catalogRepo.findByCatalogName(catalogName)
+                    .orElseGet(() -> {
+                        ProductCatalog newCatalog = new ProductCatalog();
+                        newCatalog.setCatalogName(catalogName);
+                        newCatalog.setStatus(AppEnums.ACTIVE);
+                        return catalogRepo.save(newCatalog);
+                    });
+            product.setCatalogId(catalog.getCatalogId());
+            ProductDetails updated = productRepo.save(product);
+            log.info("Updated catalog '{}' for product ID {}", catalogName, productId);
+            return EShopResponse.success(AppEnums.UPDATED, updated);
+        }).orElse(EShopResponse.failure(AppEnums.NOT_FOUND, "Product not found"));
     }
 
     @Override
-    public ApiResponseWrapper<ProductDetails> updateStocksForProductById(Long id, int stock) {
-        ApiResponseWrapper<ProductDetails> response = new ApiResponseWrapper<>();
-        try {
-            Optional<ProductDetails> productOpt = productRepo.findById(id);
-            if (productOpt.isEmpty()) {
-                log.info("Product not found: {}", id);
-                response.errorMessage(AppEnums.NOT_FOUND);
-                return response;
-            }
-
-            ProductDetails product = productOpt.get();
-
-            // Stock logic: if stock > 0 → IN_STOCK, else → OUT_OF_STOCK
-            boolean inStock = stock > 0;
-            product.setInStock(inStock);
-            product.setUpdatedAt(LocalDateTime.now());
-            product.setStatus(inStock ? AppEnums.IN_STOCK : AppEnums.OUT_OF_STOCK);
-
-            ProductDetails updatedProduct = productRepo.save(product);
-
-            log.info("Stock updated for product {} -> stock: {}", id, stock);
-            response.successMessage(AppEnums.COMPLETED, updatedProduct);
-        } catch (Exception e) {
-            log.error("Error updating stock: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
-        }
-        return response;
+    public EShopResponse<ProductDetails> updateStocksForProductById(Long id, int stock) {
+        return productRepo.findById(id).map(product -> {
+            product.setQuantityInStock(stock);
+            product.setInStock(stock > 0);
+            ProductDetails updated = productRepo.save(product);
+            log.info("Updated stock for product ID {} to {}", id, stock);
+            return EShopResponse.success(AppEnums.UPDATED, updated);
+        }).orElse(EShopResponse.failure(AppEnums.NOT_FOUND, "Product not found"));
     }
 
     @Override
-    public ApiResponseWrapper<String> deleteProductById(Long productId) {
-        ApiResponseWrapper<String> response = new ApiResponseWrapper<>();
-        try {
-            if (productRepo.existsById(productId)) {
-                productRepo.deleteById(productId);
-                log.info("Product deleted: {}", productId);
-                response.successMessage(AppEnums.DELETED, "Product deleted successfully");
-            } else {
-                response.errorMessage(AppEnums.NOT_FOUND);
-            }
-        } catch (Exception e) {
-            log.error("Delete product error: {}", e.getMessage());
-            response.errorMessage(AppEnums.ERROR);
+    public EShopResponse<String> deleteProductById(Long id) {
+        if (!productRepo.existsById(id)) {
+            return EShopResponse.failure(AppEnums.NOT_FOUND, "Product not found");
         }
-        return response;
+        productRepo.deleteById(id);
+        log.info("Deleted product ID {}", id);
+        return EShopResponse.success(AppEnums.DELETED, "Product deleted successfully");
     }
 
 }

@@ -1,8 +1,8 @@
 package com.example.eshop.service;
 
-import com.example.eshop.model.ProductCatalog;
-import com.example.eshop.model.ProductDetails;
-import com.example.eshop.utils.ApiResponseWrapper;
+import com.example.eshop.dao.model.ProductCatalog;
+import com.example.eshop.dao.model.ProductDetails;
+import com.example.eshop.utils.EShopResponse;
 
 import java.util.List;
 
@@ -14,35 +14,35 @@ public interface IProductsService {
     /**
      * Fetch all products from the system.
      */
-    ApiResponseWrapper<List<ProductDetails>> fetchAllProducts();
+    EShopResponse<List<ProductDetails>> fetchAllProducts();
 
     /**
      * Fetch product by its ID.
      *
      * @param id product ID
      */
-    ApiResponseWrapper<ProductDetails> fetchProductById(Long id);
+    EShopResponse<ProductDetails> fetchProductById(Long id);
 
     /**
      * Add a new product to the system.
      *
      * @param product product details
      */
-    ApiResponseWrapper<ProductDetails> addNewProduct(ProductDetails product);
+    EShopResponse<ProductDetails> addNewProduct(ProductDetails product);
 
     /**
      * Add a new catalog.
      *
      * @param catalog catalog details
      */
-    ApiResponseWrapper<ProductCatalog> addNewCatalog(ProductCatalog catalog);
+    EShopResponse<ProductCatalog> addNewCatalog(ProductCatalog catalog);
 
     /**
      * Fetch all products by catalog name.
      *
      * @param catalogName name of the catalog
      */
-    ApiResponseWrapper<List<ProductDetails>> fetchProductByCatalog(String catalogName);
+    EShopResponse<List<ProductDetails>> fetchProductByCatalog(String catalogName);
 
     /**
      * Update product details by product ID.
@@ -50,7 +50,7 @@ public interface IProductsService {
      * @param id product ID
      * @param newData new product data
      */
-    ApiResponseWrapper<ProductDetails> updateProductDetails(Long id, ProductDetails newData);
+    EShopResponse<ProductDetails> updateProductDetails(Long id, ProductDetails newData);
 
     /**
      * Update catalog association for a product.
@@ -58,7 +58,7 @@ public interface IProductsService {
      * @param productId product ID
      * @param catalogName catalog name
      */
-    ApiResponseWrapper<ProductDetails> updateProductCatalog(Long productId, String catalogName);
+    EShopResponse<ProductDetails> updateProductCatalog(Long productId, String catalogName);
 
     /**
      * Update stock quantity for a product.
@@ -66,13 +66,13 @@ public interface IProductsService {
      * @param id product ID
      * @param stock new stock count
      */
-    ApiResponseWrapper<ProductDetails> updateStocksForProductById(Long id, int stock);
+    EShopResponse<ProductDetails> updateStocksForProductById(Long id, int stock);
 
     /**
      * Delete product by ID.
      *
      * @param id product ID
      */
-    ApiResponseWrapper<String> deleteProductById(Long id);
+    EShopResponse<String> deleteProductById(Long id);
 
 }

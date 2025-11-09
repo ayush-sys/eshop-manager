@@ -1,4 +1,4 @@
-package com.example.eshop.model;
+package com.example.eshop.dao.model;
 
 import com.example.eshop.enums.AppEnums;
 import jakarta.persistence.*;
@@ -7,12 +7,9 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Data
 @Entity
-@Table(name = "product_details", indexes = {
-        @Index(name = "idx_product_name", columnList = "product_name"),
-        @Index(name = "idx_sku", columnList = "sku")
-})
+@Data
+@Table(name = "product_details")
 public class ProductDetails {
 
     @Id
@@ -57,14 +54,16 @@ public class ProductDetails {
     @Column(name = "status", length = 20)
     private AppEnums status = AppEnums.ACTIVE;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "catalog_id", nullable = false)
-    private ProductCatalog catalog;
+    @Column(name = "catalog_name", nullable = false, length = 150)
+    private String catalogName;
 
-    @Column(name = "created_at", columnDefinition = "TIMESTAMP")
+    @Column(name = "catalog_id", nullable = false)
+    private Long catalogId;
+
+    @Column(name = "created_at", updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at", columnDefinition = "TIMESTAMP")
+    @Column(name = "updated_at", columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime updatedAt;
 
 }

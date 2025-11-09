@@ -1,17 +1,14 @@
-package com.example.eshop.model;
+package com.example.eshop.dao.model;
 
 import com.example.eshop.enums.AppEnums;
 import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
-@Data
 @Entity
-@Table(name = "product_catalog_details", indexes = {
-        @Index(name = "idx_catalog_name", columnList = "catalog_name")
-})
+@Data
+@Table(name = "product_catalog_details")
 public class ProductCatalog {
 
     @Id
@@ -22,10 +19,6 @@ public class ProductCatalog {
     @Column(name = "catalog_name", nullable = false, unique = true, length = 100)
     private String catalogName;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_catalog_id")
-    private ProductCatalog parentCatalog;
-
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
@@ -33,13 +26,10 @@ public class ProductCatalog {
     @Column(name = "status", length = 20)
     private AppEnums status = AppEnums.ACTIVE;
 
-    @Column(name = "created_at", columnDefinition = "TIMESTAMP")
+    @Column(name = "created_at", updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at", columnDefinition = "TIMESTAMP")
+    @Column(name = "updated_at", columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime updatedAt;
-
-    @OneToMany(mappedBy = "catalog", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<ProductDetails> products;
 
 }

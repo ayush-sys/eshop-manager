@@ -1,6 +1,6 @@
-package com.example.eshop.repository;
+package com.example.eshop.dao.repository;
 
-import com.example.eshop.model.ProductCatalog;
+import com.example.eshop.dao.model.ProductCatalog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -13,10 +13,7 @@ import java.util.Optional;
 public interface IProductCatalogRepository extends JpaRepository<ProductCatalog, Long> {
 
     /**
-     * Finds catalog by catalog name.
-     *
-     * @param catalogName catalog name
-     * @return optional of ProductCatalog
+     * Find catalog by catalog name.
      */
     Optional<ProductCatalog> findByCatalogName(String catalogName);
 

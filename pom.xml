@@ -160,6 +160,7 @@
                             <goal>report</goal>
                         </goals>
                         <configuration>
+                            <outputDirectory>target/jacoco-reports</outputDirectory>
                             <excludes>
                                 <exclude>**/com/example/eshop/config/**</exclude>
                                 <exclude>**/com/example/eshop/aop/**</exclude>

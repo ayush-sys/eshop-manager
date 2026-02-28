@@ -19,6 +19,24 @@ public class EShopResponse<T> {
     /** The API response timestamp. */
     private String timestamp;
 
+    /** Default constructor. */
+    public EShopResponse() {
+    }
+
+    /**
+     * Constructor with status, message, and data.
+     *
+     * @param status  the HTTP status
+     * @param message the response message
+     * @param data    the response data
+     */
+    public EShopResponse(String status, String message, T data) {
+        this.status = status;
+        this.message = message;
+        this.data = data;
+        this.timestamp = Utils.getCurrentIsoTime();
+    }
+
     /**
      * Creates a success response.
      *

@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
@@ -25,7 +25,7 @@ class ProductControllerTest {
   @Autowired
   private MockMvc mockMvc;
 
-  @MockBean
+  @MockitoBean
   private IProductsService productService;
 
   @Autowired
@@ -33,35 +33,37 @@ class ProductControllerTest {
 
   @Test
   void fetchAllProducts_success() throws Exception {
-    EShopResponse<List<ProductDetails>> response = new EShopResponse<>(true, "Success", Collections.emptyList());
+    EShopResponse<List<ProductDetails>> response = new EShopResponse<>("OK", "Success", Collections.emptyList());
 
     Mockito.when(productService.fetchAllProducts()).thenReturn(response);
 
     mockMvc.perform(get("/api/products"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.status").value("OK"))
+        .andExpect(jsonPath("$.message").value("Success"));
   }
 
   @Test
   void fetchProductById_success() throws Exception {
     ProductDetails product = new ProductDetails();
-    product.setId(1L);
+    product.setProductId(1L);
 
-    EShopResponse<ProductDetails> response = new EShopResponse<>(true, "Success", product);
+    EShopResponse<ProductDetails> response = new EShopResponse<>("OK", "Success", product);
 
     Mockito.when(productService.fetchProductById(1L)).thenReturn(response);
 
     mockMvc.perform(get("/api/products/{id}", 1L))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.id").value(1L));
+        .andExpect(jsonPath("$.status").value("OK"))
+        .andExpect(jsonPath("$.data.productId").value(1L));
   }
 
   @Test
   void addNewProduct_success() throws Exception {
     ProductDetails product = new ProductDetails();
-    product.setName("Mobile");
+    product.setProductName("Mobile");
 
-    EShopResponse<ProductDetails> response = new EShopResponse<>(true, "Created", product);
+    EShopResponse<ProductDetails> response = new EShopResponse<>("OK", "Created", product);
 
     Mockito.when(productService.addNewProduct(Mockito.any()))
         .thenReturn(response);
@@ -70,15 +72,15 @@ class ProductControllerTest {
         .contentType(MediaType.APPLICATION_JSON)
         .content(objectMapper.writeValueAsString(product)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.status").value("OK"));
   }
 
   @Test
   void addNewCatalog_success() throws Exception {
     ProductCatalog catalog = new ProductCatalog();
-    catalog.setName("Electronics");
+    catalog.setCatalogName("Electronics");
 
-    EShopResponse<ProductCatalog> response = new EShopResponse<>(true, "Created", catalog);
+    EShopResponse<ProductCatalog> response = new EShopResponse<>("OK", "Created", catalog);
 
     Mockito.when(productService.addNewCatalog(Mockito.any()))
         .thenReturn(response);
@@ -87,27 +89,28 @@ class ProductControllerTest {
         .contentType(MediaType.APPLICATION_JSON)
         .content(objectMapper.writeValueAsString(catalog)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.name").value("Electronics"));
+        .andExpect(jsonPath("$.status").value("OK"))
+        .andExpect(jsonPath("$.data.catalogName").value("Electronics"));
   }
 
   @Test
   void fetchProductByCatalog_success() throws Exception {
-    EShopResponse<List<ProductDetails>> response = new EShopResponse<>(true, "Success", Collections.emptyList());
+    EShopResponse<List<ProductDetails>> response = new EShopResponse<>("OK", "Success", Collections.emptyList());
 
     Mockito.when(productService.fetchProductByCatalog("Electronics"))
         .thenReturn(response);
 
     mockMvc.perform(get("/api/products/catalog/{catalogName}", "Electronics"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.status").value("OK"));
   }
 
   @Test
   void updateProductDetails_success() throws Exception {
     ProductDetails product = new ProductDetails();
-    product.setName("Updated Product");
+    product.setProductName("Updated Product");
 
-    EShopResponse<ProductDetails> response = new EShopResponse<>(true, "Updated", product);
+    EShopResponse<ProductDetails> response = new EShopResponse<>("OK", "Updated", product);
 
     Mockito.when(productService.updateProductDetails(Mockito.eq(1L), Mockito.any()))
         .thenReturn(response);
@@ -116,42 +119,43 @@ class ProductControllerTest {
         .contentType(MediaType.APPLICATION_JSON)
         .content(objectMapper.writeValueAsString(product)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.status").value("OK"));
   }
 
   @Test
   void updateProductCatalog_success() throws Exception {
-    EShopResponse<ProductDetails> response = new EShopResponse<>(true, "Updated", new ProductDetails());
+    EShopResponse<ProductDetails> response = new EShopResponse<>("OK", "Updated", new ProductDetails());
 
     Mockito.when(productService.updateProductCatalog(1L, "Electronics"))
         .thenReturn(response);
 
     mockMvc.perform(put("/api/products/{productId}/catalog/{catalogName}", 1L, "Electronics"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.status").value("OK"));
   }
 
   @Test
   void updateStock_success() throws Exception {
-    EShopResponse<ProductDetails> response = new EShopResponse<>(true, "Stock Updated", new ProductDetails());
+    EShopResponse<ProductDetails> response = new EShopResponse<>("OK", "Stock Updated", new ProductDetails());
 
     Mockito.when(productService.updateStocksForProductById(1L, 10))
         .thenReturn(response);
 
     mockMvc.perform(put("/api/products/{id}/stock/{stock}", 1L, 10))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.status").value("OK"));
   }
 
   @Test
   void deleteProductById_success() throws Exception {
-    EShopResponse<String> response = new EShopResponse<>(true, "Deleted", "Product removed");
+    EShopResponse<String> response = new EShopResponse<>("OK", "Deleted", "Product removed");
 
     Mockito.when(productService.deleteProductById(1L))
         .thenReturn(response);
 
     mockMvc.perform(delete("/api/products/{productId}", 1L))
         .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("OK"))
         .andExpect(jsonPath("$.data").value("Product removed"));
   }
 }

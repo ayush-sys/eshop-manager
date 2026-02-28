@@ -8,7 +8,7 @@
     <include file="db/changelog/products-ddl.xml"/>
 
     <!-- Default entries -->
-    <include file="db/changelog/default-entries.xml"/>
+    <include file="db/changelog/default-entries.sql"/>
 
 
 </databaseChangeLog>

@@ -16,7 +16,6 @@
             <column name="catalog_name" type="VARCHAR(100)">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="parent_catalog_id" type="BIGINT"/>
             <column name="description" type="TEXT"/>
             <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
@@ -25,7 +24,7 @@
 
         <addForeignKeyConstraint
                 baseTableName="product_catalog_details"
-                baseColumnNames="parent_catalog_id"
+                baseColumnNames="catalog_id"
                 referencedTableName="product_catalog_details"
                 referencedColumnNames="catalog_id"
                 constraintName="fk_parent_catalog"/>
@@ -50,8 +49,12 @@
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="description" type="TEXT"/>
-            <column name="brand" type="VARCHAR(100)"/>
+            <column name="maker_name" type="VARCHAR(100)"/>
+            <column name="model_number" type="VARCHAR(100)"/>
             <column name="price" type="DECIMAL(10,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="in_stock" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
             <column name="discount_percent" type="DECIMAL(5,2)" defaultValueNumeric="0"/>
@@ -59,9 +62,23 @@
             <column name="weight" type="DECIMAL(6,2)"/>
             <column name="dimensions" type="VARCHAR(100)"/>
             <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"/>
+            <column name="catalog_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="catalog_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
             <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
         </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="product_details"
+                baseColumnNames="catalog_id"
+                referencedTableName="product_catalog_details"
+                referencedColumnNames="catalog_id"
+                onDelete="CASCADE"
+                constraintName="fk_product_catalog"/>
 
         <createIndex tableName="product_details" indexName="idx_product_name">
             <column name="product_name"/>
@@ -69,45 +86,6 @@
 
         <createIndex tableName="product_details" indexName="idx_sku">
             <column name="sku"/>
-        </createIndex>
-    </changeSet>
-
-    <!-- ========================================================= -->
-    <!-- 3. Create table: product_catalog_mapping -->
-    <!-- ========================================================= -->
-    <changeSet id="3-create-product-catalog-mapping" author="ayush">
-        <createTable tableName="product_catalog_mapping">
-            <column name="id" type="BIGSERIAL">
-                <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="product_id" type="BIGINT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="catalog_id" type="BIGINT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
-        </createTable>
-
-        <addForeignKeyConstraint
-                baseTableName="product_catalog_mapping"
-                baseColumnNames="product_id"
-                referencedTableName="product_details"
-                referencedColumnNames="product_id"
-                onDelete="CASCADE"
-                constraintName="fk_product_mapping_product"/>
-
-        <addForeignKeyConstraint
-                baseTableName="product_catalog_mapping"
-                baseColumnNames="catalog_id"
-                referencedTableName="product_catalog_details"
-                referencedColumnNames="catalog_id"
-                onDelete="CASCADE"
-                constraintName="fk_product_mapping_catalog"/>
-
-        <createIndex tableName="product_catalog_mapping" indexName="idx_product_catalog">
-            <column name="product_id"/>
-            <column name="catalog_id"/>
         </createIndex>
     </changeSet>
 

@@ -1,0 +1,168 @@
+# Security scanning for the eshop Spring Boot application.
+# Runs SAST (Semgrep), SCA (Trivy), and DAST (OWASP ZAP) independently of
+# ci.yaml - a security finding never blocks the build/test/coverage pipeline
+# and vice versa. See branch protection settings to decide which checks are
+# required for merge.
+name: Security Scans
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+  schedule:
+    # Nightly full scan at 02:00 UTC, in addition to push/PR scans.
+    - cron: '0 2 * * *'
+
+permissions:
+  contents: read
+
+# Own concurrency group, keyed off this workflow's name, so a new push only
+# cancels older runs of THIS workflow, not the ci.yaml build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ---------------------------------------------------------------------
+  # SAST: static analysis of application source with Semgrep.
+  # ---------------------------------------------------------------------
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write   # required to upload SARIF to code scanning
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep scan
+        run: |
+          semgrep scan \
+            --config=p/java \
+            --config=p/owasp-top-ten \
+            --sarif --output semgrep-results.sarif \
+            --error \
+            .
+
+      - name: Upload SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-results.sarif
+
+      - name: Upload Semgrep report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep-results.sarif
+          retention-days: 30
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------
+  # SCA: dependency vulnerability scan with Trivy, reading pom.xml.
+  # ---------------------------------------------------------------------
+  sca:
+    name: SCA (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan (table output, fails the job)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: '1'
+
+      - name: Run Trivy filesystem scan (SARIF for code scanning)
+        if: always()
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: '0'   # this run only produces the artifact, first run already gated
+
+      - name: Upload SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  # ---------------------------------------------------------------------
+  # DAST: boots the app against the DEV profile (in-memory H2, no external
+  # dependencies needed) and attacks it via its OpenAPI document with ZAP.
+  # ---------------------------------------------------------------------
+  dast:
+    name: DAST (OWASP ZAP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Start application (DEV profile)
+        run: |
+          nohup ./mvnw -B -ntp spring-boot:run -Dspring-boot.run.profiles=DEV > app.log 2>&1 &
+          echo $! > app.pid
+
+      - name: Wait for application to become ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/v3/api-docs > /dev/null; then
+              echo "Application is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Application did not start in time"
+          cat app.log
+          exit 1
+
+      - name: Run ZAP API scan
+        uses: zaproxy/action-api-scan@v0.7.0
+        with:
+          target: 'http://localhost:8080/v3/api-docs'
+          format: openapi
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-I'
+
+      - name: Stop application
+        if: always()
+        run: kill "$(cat app.pid)" || true
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: report_html.html
+          retention-days: 30
+          if-no-files-found: warn

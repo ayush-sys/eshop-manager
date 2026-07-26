@@ -1,0 +1,7 @@
+# ZAP scan rule config for eshop-manager.
+# Format (tab-separated): <rule id>	<threshold: IGNORE|INFO|WARN|FAIL>	<optional url regex>
+# Rule IDs: https://www.zaproxy.org/docs/alerts/
+#
+# Nothing is ignored yet. After the first scan, review zap-report.html /
+# report_html.html and add IGNORE lines below for confirmed false positives -
+# do not suppress a real finding just to get a green pipeline.

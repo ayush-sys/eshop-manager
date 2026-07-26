@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -169,6 +170,135 @@ class ProductServiceImplTest {
         assertEquals("INTERNAL_SERVER_ERROR", response.getStatus());
         assertTrue(response.getMessage().contains("Product not found"));
         verify(productRepo, never()).deleteById(any());
+    }
+
+    @Test
+    void updateStocksForProductById_notFound() {
+        when(productRepo.findById(1L)).thenReturn(Optional.empty());
+
+        EShopResponse<ProductDetails> response = productService.updateStocksForProductById(1L, 10);
+
+        assertEquals("INTERNAL_SERVER_ERROR", response.getStatus());
+        assertTrue(response.getMessage().contains("Product not found"));
+        verify(productRepo, never()).save(any());
+    }
+
+    @Test
+    void addNewCatalog_success() {
+        when(catalogRepo.save(catalog)).thenReturn(catalog);
+
+        EShopResponse<ProductCatalog> response = productService.addNewCatalog(catalog);
+
+        assertEquals("OK", response.getStatus());
+        assertTrue(response.getMessage().contains(AppEnums.SUCCESS.toString()));
+        assertEquals("Mobiles", response.getData().getCatalogName());
+        verify(catalogRepo).save(catalog);
+    }
+
+    @Test
+    void fetchProductByCatalog_catalogNotFound() {
+        when(catalogRepo.findByCatalogName("Unknown")).thenReturn(Optional.empty());
+
+        EShopResponse<List<ProductDetails>> response = productService.fetchProductByCatalog("Unknown");
+
+        assertEquals("INTERNAL_SERVER_ERROR", response.getStatus());
+        assertTrue(response.getMessage().contains("Catalog not found"));
+        verify(productRepo, never()).findByCatalogId(any());
+    }
+
+    @Test
+    void fetchProductByCatalog_noProductsFound() {
+        when(catalogRepo.findByCatalogName("Mobiles")).thenReturn(Optional.of(catalog));
+        when(productRepo.findByCatalogId(100L)).thenReturn(List.of());
+
+        EShopResponse<List<ProductDetails>> response = productService.fetchProductByCatalog("Mobiles");
+
+        assertEquals("INTERNAL_SERVER_ERROR", response.getStatus());
+        assertTrue(response.getMessage().contains("No products found for catalog"));
+    }
+
+    @Test
+    void updateProductDetails_success() {
+        ProductDetails newData = new ProductDetails();
+        newData.setProductName("iPhone 15");
+        newData.setDescription("Updated description");
+        newData.setSku("SKU-123");
+        newData.setMakerName("Apple");
+        newData.setModelNumber("A3108");
+        newData.setPrice(new BigDecimal("999.00"));
+        newData.setQuantityInStock(20);
+        newData.setInStock(true);
+        newData.setDiscountPercent(new BigDecimal("10.00"));
+        newData.setDimensions("6x3x1");
+        newData.setWeight(new BigDecimal("0.40"));
+        newData.setStatus(AppEnums.ACTIVE);
+        newData.setCatalogId(100L);
+
+        when(productRepo.findById(1L)).thenReturn(Optional.of(product));
+        when(productRepo.save(product)).thenReturn(product);
+
+        EShopResponse<ProductDetails> response = productService.updateProductDetails(1L, newData);
+
+        assertEquals("OK", response.getStatus());
+        assertTrue(response.getMessage().contains(AppEnums.UPDATED.toString()));
+        assertEquals("iPhone 15", response.getData().getProductName());
+        verify(productRepo).save(product);
+    }
+
+    @Test
+    void updateProductDetails_notFound() {
+        ProductDetails newData = new ProductDetails();
+        when(productRepo.findById(1L)).thenReturn(Optional.empty());
+
+        EShopResponse<ProductDetails> response = productService.updateProductDetails(1L, newData);
+
+        assertEquals("INTERNAL_SERVER_ERROR", response.getStatus());
+        assertTrue(response.getMessage().contains("Product not found"));
+        verify(productRepo, never()).save(any());
+    }
+
+    @Test
+    void updateProductCatalog_existingCatalog() {
+        when(productRepo.findById(1L)).thenReturn(Optional.of(product));
+        when(catalogRepo.findByCatalogName("Mobiles")).thenReturn(Optional.of(catalog));
+        when(productRepo.save(product)).thenReturn(product);
+
+        EShopResponse<ProductDetails> response = productService.updateProductCatalog(1L, "Mobiles");
+
+        assertEquals("OK", response.getStatus());
+        assertTrue(response.getMessage().contains(AppEnums.UPDATED.toString()));
+        verify(catalogRepo, never()).save(any());
+        verify(productRepo).save(product);
+    }
+
+    @Test
+    void updateProductCatalog_createsNewCatalog() {
+        ProductCatalog newCatalog = new ProductCatalog();
+        newCatalog.setCatalogId(200L);
+        newCatalog.setCatalogName("Laptops");
+
+        when(productRepo.findById(1L)).thenReturn(Optional.of(product));
+        when(catalogRepo.findByCatalogName("Laptops")).thenReturn(Optional.empty());
+        when(catalogRepo.save(any(ProductCatalog.class))).thenReturn(newCatalog);
+        when(productRepo.save(product)).thenReturn(product);
+
+        EShopResponse<ProductDetails> response = productService.updateProductCatalog(1L, "Laptops");
+
+        assertEquals("OK", response.getStatus());
+        assertTrue(response.getMessage().contains(AppEnums.UPDATED.toString()));
+        assertEquals(200L, product.getCatalogId());
+        verify(catalogRepo).save(any(ProductCatalog.class));
+    }
+
+    @Test
+    void updateProductCatalog_productNotFound() {
+        when(productRepo.findById(1L)).thenReturn(Optional.empty());
+
+        EShopResponse<ProductDetails> response = productService.updateProductCatalog(1L, "Mobiles");
+
+        assertEquals("INTERNAL_SERVER_ERROR", response.getStatus());
+        assertTrue(response.getMessage().contains("Product not found"));
+        verify(catalogRepo, never()).findByCatalogName(any());
     }
 
     @ParameterizedTest

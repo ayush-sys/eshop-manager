@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Runtime output ###
+logs/
+zap-report.html
+.zap/zap-report.html

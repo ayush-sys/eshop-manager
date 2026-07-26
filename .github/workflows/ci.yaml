@@ -1,21 +1,43 @@
-# Continuous integration for the eshop Spring Boot application.
-# Builds the project, runs the test suite, enforces a minimum coverage
-# threshold, and publishes a downloadable coverage report.
-name: Spring Boot CI with Coverage Gate
+# =====================================================================
+# Spring Realm Check
+# ---------------------------------------------------------------------
+# A single gated pipeline for the eshop Spring Boot application.
+#
+# The realm is only opened once the build proves itself, in order:
+#
+#   Forge      -> compile, run the JUnit suite, package the JAR
+#   Gate       -> enforce the JaCoCo coverage threshold
+#   Watchtower -> SAST via GitHub CodeQL
+#   Warden     -> SCA via Trivy (Aqua Security)
+#   Siege      -> DAST via OWASP ZAP against the live API
+#   Verdict    -> single aggregated status for branch protection
+#
+# The three security scans run in parallel with each other, but all of
+# them wait on the coverage gate - no scan burns runner minutes on a
+# build that could not meet its test bar.
+# =====================================================================
+name: Spring Realm Check
 
-# Triggers: every push on any branch, plus every pull request.
-# Note: pull_request events run against a merge commit of your branch and the
-# target branch, which is what you want for a gate.
+# Triggers: every push on any branch, every pull request, plus a nightly
+# sweep. '**' covers branches containing slashes such as feature/add-cart;
+# a plain '*' would miss those.
+# Note: scheduled runs only ever fire on the repository's default branch.
 on:
   push:
     branches:
       - '**'
   pull_request:
+  schedule:
+    # Nightly at 02:00 UTC - catches newly disclosed CVEs in dependencies
+    # that were clean at the time of the last commit.
+    - cron: '0 2 * * *'
 
 # Restrict the GITHUB_TOKEN to the minimum this workflow needs.
-# This pipeline only reads code - it does not write to the repository.
+# security-events: write is required to publish CodeQL and Trivy findings
+# to the repository's Code Scanning tab.
 permissions:
   contents: read
+  security-events: write
 
 # If a newer commit is pushed to the same branch, cancel the older run
 # instead of letting both finish. Saves runner minutes.
@@ -34,12 +56,13 @@ env:
 
 jobs:
 
-  # ---------------------------------------------------------------------
-  # JOB 1: Compile the application, run the tests, and hand the generated
-  # JaCoCo output to the next job.
-  # ---------------------------------------------------------------------
+  # ===================================================================
+  # STAGE 1 - FORGE
+  # Compile the application, run the tests, and hand the generated
+  # JaCoCo output and packaged JAR to the jobs downstream.
+  # ===================================================================
   build:
-    name: Build and Test
+    name: Forge - Build and Test
     runs-on: ubuntu-latest
     timeout-minutes: 20   # Prevents a hung build from consuming minutes
     steps:
@@ -85,7 +108,8 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # The packaged application, for downstream use.
+      # The packaged application. Reused by the DAST job so that ZAP attacks
+      # the exact artifact this run produced.
       # The filename comes from <finalName> in pom.xml.
       - name: Upload application JAR
         if: success()
@@ -96,12 +120,14 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # ---------------------------------------------------------------------
-  # JOB 2: Calculate the coverage percentage, enforce the threshold, and
-  # publish the final report only if the threshold is met.
-  # ---------------------------------------------------------------------
+  # ===================================================================
+  # STAGE 2 - GATE
+  # Calculate the coverage percentage, enforce the threshold, and
+  # publish the report only if the threshold is met. Everything that
+  # follows is blocked until this passes.
+  # ===================================================================
   coverage:
-    name: Coverage Gate and Report
+    name: Gate - Coverage Threshold
     runs-on: ubuntu-latest
     needs: build          # Runs only after the build job succeeds
     timeout-minutes: 10
@@ -184,14 +210,15 @@ jobs:
             echo "::error::Coverage ${PERCENT}% is below the required ${COVERAGE_THRESHOLD}%."
             {
               echo ""
-              echo "**Result: FAILED** - below threshold."
+              echo "**Result: FAILED** - below threshold. Security scans skipped."
               echo "Download the \`jacoco-raw\` artifact to see uncovered classes."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
           echo "Coverage requirement satisfied: ${PERCENT}% >= ${COVERAGE_THRESHOLD}%"
-          printf '\n**Result: PASSED**\n' >> "$GITHUB_STEP_SUMMARY"
+          printf '\n**Result: PASSED** - opening the realm to security scans.\n' \
+            >> "$GITHUB_STEP_SUMMARY"
 
       # A failed step aborts the remaining steps in the job, so this is
       # reached only when the gate above passes. The published report
@@ -204,3 +231,239 @@ jobs:
           path: jacoco-reports/
           retention-days: 30
           if-no-files-found: error
+
+  # ===================================================================
+  # STAGE 3a - WATCHTOWER (SAST)
+  # GitHub CodeQL: semantic analysis of the application's own source.
+  # Findings land in the Security -> Code scanning tab.
+  # ===================================================================
+  codeql:
+    name: Watchtower - SAST (CodeQL)
+    runs-on: ubuntu-latest
+    needs: coverage       # Gated on the coverage threshold
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # build-mode: manual means CodeQL observes the compiler as our own
+      # Maven command runs, rather than guessing how to build the project.
+      # security-extended widens the default query pack for deeper coverage.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+          queries: security-extended
+
+      # Tests already ran in the Forge stage - compiling is enough here, and
+      # -DskipTests keeps this job fast.
+      - name: Compile for CodeQL
+        run: mvn -B -ntp clean compile -DskipTests
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:java-kotlin'
+
+  # ===================================================================
+  # STAGE 3b - WARDEN (SCA)
+  # Trivy (Aqua Security): scans declared dependencies in pom.xml for
+  # known CVEs, and the repository for leaked secrets and IaC issues.
+  # ===================================================================
+  trivy:
+    name: Warden - SCA (Trivy)
+    runs-on: ubuntu-latest
+    needs: coverage       # Gated on the coverage threshold
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Human-readable output in the log, and the gate itself:
+      # exit-code 1 fails the job on any fixable HIGH/CRITICAL finding.
+      # --ignore-unfixed avoids failing on CVEs with no available patch.
+      - name: Trivy scan (gate)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: 'vuln,secret,misconfig'
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: '1'
+
+      # Second pass purely to produce SARIF for the Code Scanning tab.
+      # exit-code 0 because the gate above already decided pass/fail;
+      # if:always() ensures findings are still published when it failed.
+      - name: Trivy scan (SARIF report)
+        if: always()
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: 'vuln,secret,misconfig'
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: '0'
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+  # ===================================================================
+  # STAGE 3c - SIEGE (DAST)
+  # OWASP ZAP: boots the JAR produced by the Forge stage and attacks the
+  # live API through its OpenAPI document. The DEV profile is used because
+  # it runs on in-memory H2 and needs no external database.
+  # ===================================================================
+  zap:
+    name: Siege - DAST (OWASP ZAP)
+    runs-on: ubuntu-latest
+    needs: coverage       # Gated on the coverage threshold
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      # Needed for .zap/rules.tsv, which tunes which alerts are actionable.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Reuse the exact artifact the Forge stage packaged rather than
+      # rebuilding - what gets attacked is what was built.
+      - name: Download application JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: eshop-manager-jar
+          path: .
+
+      # DEV overrides the datasource to in-memory H2. DB_PASSWORD is set to a
+      # throwaway value only to satisfy the ${DB_PASSWORD} placeholder in the
+      # shared datasource block of application.yml.
+      - name: Start application (DEV profile)
+        env:
+          DB_PASSWORD: ci-not-used
+        run: |
+          set -euo pipefail
+          nohup java -jar eshop-manager.jar \
+            --spring.profiles.active=DEV > app.log 2>&1 &
+          echo $! > app.pid
+
+      - name: Wait for the API to come up
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 45); do
+            if curl -sf http://localhost:8080/v3/api-docs > /dev/null; then
+              echo "Application is up after ${i} attempt(s)."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Application did not become ready in time."
+          cat app.log
+          exit 1
+
+      # -I means do not fail the job on warning-level alerts. Rules promoted
+      # to FAIL in .zap/rules.tsv still break the build.
+      - name: Run ZAP API scan
+        uses: zaproxy/action-api-scan@v0.7.0
+        with:
+          target: 'http://localhost:8080/v3/api-docs'
+          format: openapi
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-I'
+          allow_issue_writing: false
+
+      - name: Stop application
+        if: always()
+        run: kill "$(cat app.pid)" 2>/dev/null || true
+
+      # The app log explains a ZAP run that found nothing because the API
+      # never actually started.
+      - name: Upload application log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dast-app-log
+          path: app.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ===================================================================
+  # VERDICT
+  # One aggregated status to use as the required check in branch
+  # protection, instead of ticking five separate jobs.
+  # ===================================================================
+  verdict:
+    name: Verdict - Realm Status
+    runs-on: ubuntu-latest
+    needs: [build, coverage, codeql, trivy, zap]
+    if: always()          # Must run even when an upstream job failed
+    timeout-minutes: 5
+    steps:
+      - name: Summarise and decide
+        env:
+          BUILD: ${{ needs.build.result }}
+          COVERAGE: ${{ needs.coverage.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          TRIVY: ${{ needs.trivy.result }}
+          ZAP: ${{ needs.zap.result }}
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## Spring Realm Check - Verdict"
+            echo ""
+            echo "| Stage | Job | Result |"
+            echo "|-------|-----|--------|"
+            echo "| Forge | Build and Test | $BUILD |"
+            echo "| Gate | Coverage Threshold | $COVERAGE |"
+            echo "| Watchtower | SAST (CodeQL) | $CODEQL |"
+            echo "| Warden | SCA (Trivy) | $TRIVY |"
+            echo "| Siege | DAST (OWASP ZAP) | $ZAP |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          FAILED=""
+          for stage in BUILD COVERAGE CODEQL TRIVY ZAP; do
+            result="${!stage}"
+            # 'skipped' is only reachable when an upstream job already failed,
+            # so the failure is reported there rather than counted twice.
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              FAILED="$FAILED $stage"
+            fi
+          done
+
+          if [ -n "$FAILED" ]; then
+            echo "::error::Realm check failed:${FAILED}"
+            printf '\n**Realm status: BREACHED** -%s\n' "$FAILED" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "All stages passed."
+          printf '\n**Realm status: SECURE**\n' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,206 @@
+# Continuous integration for the eshop Spring Boot application.
+# Builds the project, runs the test suite, enforces a minimum coverage
+# threshold, and publishes a downloadable coverage report.
+name: Spring Boot CI with Coverage Gate
+
+# Triggers: every push on any branch, plus every pull request.
+# Note: pull_request events run against a merge commit of your branch and the
+# target branch, which is what you want for a gate.
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+# Restrict the GITHUB_TOKEN to the minimum this workflow needs.
+# This pipeline only reads code - it does not write to the repository.
+permissions:
+  contents: read
+
+# If a newer commit is pushed to the same branch, cancel the older run
+# instead of letting both finish. Saves runner minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Single place to change the coverage rule.
+env:
+  # Minimum acceptable coverage percentage.
+  COVERAGE_THRESHOLD: '60'
+  # Which JaCoCo counter to measure: INSTRUCTION or LINE.
+  COVERAGE_COUNTER: 'INSTRUCTION'
+  # Must match <outputDirectory> of the jacoco report execution in pom.xml.
+  REPORT_DIR: 'target/jacoco-reports'
+
+jobs:
+
+  # ---------------------------------------------------------------------
+  # JOB 1: Compile the application, run the tests, and hand the generated
+  # JaCoCo output to the next job.
+  # ---------------------------------------------------------------------
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20   # Prevents a hung build from consuming minutes
+    steps:
+
+      # Fetches the repository into the runner workspace.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Installs JDK 17 (required by the project) and enables dependency
+      # caching so that Maven does not re-download the world on every run.
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # "verify" runs the full lifecycle: compile, test, JaCoCo report, package.
+      #   -B   batch mode, no interactive prompts
+      #   -ntp hides the download progress noise from the logs
+      - name: Build and run tests
+        run: mvn -B -ntp clean verify
+
+      # if:always() means this runs even when the build fails, so that a
+      # coverage failure can still be investigated. Short retention because
+      # this is an intermediate hand-off, not the deliverable.
+      - name: Upload raw JaCoCo output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-raw
+          path: ${{ env.REPORT_DIR }}/
+          retention-days: 1
+          if-no-files-found: error
+
+      # Surefire XML makes a failing test much easier to diagnose than logs.
+      - name: Upload Surefire test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # The packaged application, for downstream use.
+      # The filename comes from <finalName> in pom.xml.
+      - name: Upload application JAR
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eshop-manager-jar
+          path: target/eshop-manager.jar
+          retention-days: 7
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------
+  # JOB 2: Calculate the coverage percentage, enforce the threshold, and
+  # publish the final report only if the threshold is met.
+  # ---------------------------------------------------------------------
+  coverage:
+    name: Coverage Gate and Report
+    runs-on: ubuntu-latest
+    needs: build          # Runs only after the build job succeeds
+    timeout-minutes: 10
+    steps:
+
+      # This job has no checkout and no JDK - it only parses files, so it
+      # does not need them.
+      - name: Download raw JaCoCo output
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-raw
+          path: jacoco-reports
+
+      # JaCoCo writes CSV and XML alongside the HTML report, so the number can
+      # be read from a stable column format rather than scraped from HTML.
+      #
+      # JaCoCo CSV columns (1-indexed):
+      #   1 GROUP              2 PACKAGE             3 CLASS
+      #   4 INSTRUCTION_MISSED 5 INSTRUCTION_COVERED
+      #   6 BRANCH_MISSED      7 BRANCH_COVERED
+      #   8 LINE_MISSED        9 LINE_COVERED
+      #  10 COMPLEXITY_MISSED 11 COMPLEXITY_COVERED
+      #  12 METHOD_MISSED     13 METHOD_COVERED
+      - name: Calculate coverage
+        id: cov
+        run: |
+          set -euo pipefail   # Fail on error, unset variable, or broken pipe
+
+          CSV="jacoco-reports/jacoco.csv"
+          if [ ! -f "$CSV" ]; then
+            echo "::error::jacoco.csv not found at $CSV."
+            echo "Check REPORT_DIR against <outputDirectory> in pom.xml."
+            exit 1
+          fi
+
+          # Pick the column pair for the configured counter.
+          case "$COVERAGE_COUNTER" in
+            INSTRUCTION) MISS_COL=4; COV_COL=5 ;;
+            LINE)        MISS_COL=8; COV_COL=9 ;;
+            *) echo "::error::COVERAGE_COUNTER must be INSTRUCTION or LINE"; exit 1 ;;
+          esac
+
+          # Sum missed and covered across all rows, skipping the header.
+          PERCENT=$(awk -F',' -v m="$MISS_COL" -v c="$COV_COL" '
+            NR > 1 { miss += $m; cov += $c }
+            END {
+              total = miss + cov
+              if (total == 0) { exit 1 }
+              printf "%.2f", (cov / total) * 100
+            }' "$CSV")
+
+          [ -n "$PERCENT" ] || { echo "::error::No coverage value derived."; exit 1; }
+
+          echo "percent=$PERCENT" >> "$GITHUB_OUTPUT"
+          echo "Coverage ($COVERAGE_COUNTER): $PERCENT%"
+
+          # Surface the number in the run summary so nobody has to open logs.
+          {
+            echo "## Test Coverage"
+            echo ""
+            echo "| Counter | Coverage | Threshold |"
+            echo "|---------|----------|-----------|"
+            echo "| $COVERAGE_COUNTER | ${PERCENT}% | ${COVERAGE_THRESHOLD}% |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The percentage is a decimal, so bash [ -lt ] cannot be used - it is
+      # integer-only and will throw a syntax error on a value like 61.50.
+      # awk handles the comparison instead.
+      #
+      # The step output is passed through env rather than being interpolated
+      # directly into the script body, which is the safer pattern.
+      - name: Enforce minimum coverage
+        env:
+          PERCENT: ${{ steps.cov.outputs.percent }}
+        run: |
+          set -euo pipefail
+
+          if awk -v p="$PERCENT" -v t="$COVERAGE_THRESHOLD" \
+                 'BEGIN { exit !(p + 0 < t + 0) }'; then
+            echo "::error::Coverage ${PERCENT}% is below the required ${COVERAGE_THRESHOLD}%."
+            {
+              echo ""
+              echo "**Result: FAILED** - below threshold."
+              echo "Download the \`jacoco-raw\` artifact to see uncovered classes."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "Coverage requirement satisfied: ${PERCENT}% >= ${COVERAGE_THRESHOLD}%"
+          printf '\n**Result: PASSED**\n' >> "$GITHUB_STEP_SUMMARY"
+
+      # A failed step aborts the remaining steps in the job, so this is
+      # reached only when the gate above passes. The published report
+      # therefore always represents a build that met the requirement.
+      - name: Publish coverage report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.run_number }}
+          path: jacoco-reports/
+          retention-days: 30
+          if-no-files-found: error
